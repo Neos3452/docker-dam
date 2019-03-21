@@ -1,6 +1,37 @@
 #!/bin/bash
 set -e
 
+SYSTEMD_SCRIPT=$(cat << EOF
+[Unit]
+Description=Docker Dam - firewall manager for docker
+Requisite=docker.service
+After=docker.service
+
+[Install]
+RequiredBy=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=true
+ExecStart=/usr/bin/damdocker --close
+ExecStop=/usr/bin/damdocker --open
+
+EOF
+)
+SYSTEMD_PATH="/lib/systemd/system/damdocker.service"
+
+function install() {
+    echo "${SYSTEMD_SCRIPT}" > "${SYSTEMD_PATH}"
+    systemctl enable damdocker
+    systemctl start damdocker
+}
+
+function uninstall() {
+    systemctl disable damdocker
+    systemctl stop damdocker
+    rm "${SYSTEMD_PATH}"
+}
+
 function close() {
     iptables -N DOCKER-DAM
     iptables -A DOCKER-DAM -s 172.17.0.0/16 -j RETURN
@@ -10,6 +41,10 @@ function close() {
 }
 
 function open() {
+    if ! iptables -L DOCKER-USER > /dev/null; then
+        echo "There is no docker chain in iptables. Is docker daemon running?"
+        exit 2
+    fi
     iptables -F DOCKER-DAM
     iptables -D DOCKER-USER -j DOCKER-DAM
     iptables -X DOCKER-DAM
@@ -17,16 +52,18 @@ function open() {
 }
 
 function version() {
-    echo "Version 0.0.1 - Docker Dam"
+    echo "Version 0.0.2 - Docker Dam"
 }
 
 function help() {
     echo "Usage:"
-    echo "docker-dam.sh command options"
+    echo "damdocker command options"
     echo ""
     echo "Available commands:"
     echo "--close: disable port blocking"
     echo "--open: enable port blocking"
+    echo "--install: install as systemd service"
+    echo "--uninstall: remove systemd service"
     echo "--version: show current version"
     echo "--help: show this message"
 }
@@ -39,7 +76,7 @@ if [ ${IPTABLES_RETURN} -ne 0 ]; then
     exit ${IPTABLES_RETURN}
 fi
 
-for cmd in close open help version; do
+for cmd in close open install uninstall help version; do
     if [ "-${cmd:0:1}" == "$1" -o "--${cmd}" == "$1" ]; then
         shift 1
         ${cmd} "$@"
