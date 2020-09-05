@@ -34,7 +34,7 @@ function uninstall() {
 
 function close() {
     iptables -N DOCKER-DAM
-    iptables -A DOCKER-DAM -s 172.17.0.0/16 -j RETURN
+    iptables -A DOCKER-DAM -s 172.16.0.0/12 -j RETURN
     iptables -A DOCKER-DAM -j REJECT
     iptables -I DOCKER-USER 1 -j DOCKER-DAM
     echo "All ports closed"
@@ -52,7 +52,7 @@ function open() {
 }
 
 function version() {
-    echo "Version 0.0.2 - Docker Dam"
+    echo "Version 0.0.3 - Docker Dam"
 }
 
 function help() {
